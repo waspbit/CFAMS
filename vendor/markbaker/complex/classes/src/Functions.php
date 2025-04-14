@@ -1,823 +1,376 @@
 <?php
 
-namespace Complex;
-
-use InvalidArgumentException;
+namespace Matrix;
 
 class Functions
 {
     /**
-     * Returns the absolute value (modulus) of a complex number.
-     * Also known as the rho of the complex number, i.e. the distance/radius
-     *   from the centrepoint to the representation of the number in polar coordinates.
+     * Validates an array of matrix, converting an array to a matrix if required.
      *
-     * This function is a synonym for rho()
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    float            The absolute (or rho) value of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     *
-     * @see    rho
-     *
+     * @param Matrix|array $matrix Matrix or an array to treat as a matrix.
+     * @return Matrix The new matrix
+     * @throws Exception If argument isn't a valid matrix or array.
      */
-    public static function abs($complex): float
+    private static function validateMatrix($matrix)
     {
-        return self::rho($complex);
+        if (is_array($matrix)) {
+            $matrix = new Matrix($matrix);
+        }
+        if (!$matrix instanceof Matrix) {
+            throw new Exception('Must be Matrix or array');
+        }
+
+        return $matrix;
     }
 
     /**
-     * Returns the inverse cosine of a complex number.
+     * Calculate the adjoint of the matrix
      *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse cosine of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
+     * @param Matrix $matrix The matrix whose adjoint we wish to calculate
+     * @return Matrix
+     *
+     * @throws Exception
      */
-    public static function acos($complex): Complex
+    private static function getAdjoint(Matrix $matrix)
     {
-        $complex = Complex::validateComplexArgument($complex);
-
-        $invsqrt = self::sqrt(Operations::subtract(1, Operations::multiply($complex, $complex)));
-        $adjust = new Complex(
-            $complex->getReal() - $invsqrt->getImaginary(),
-            $complex->getImaginary() + $invsqrt->getReal()
-        );
-        $log = self::ln($adjust);
-
-        return new Complex(
-            $log->getImaginary(),
-            -1 * $log->getReal()
+        return self::transpose(
+            self::getCofactors($matrix)
         );
     }
 
     /**
-     * Returns the inverse hyperbolic cosine of a complex number.
+     * Return the adjoint of this matrix
+     * The adjugate, classical adjoint, or adjunct of a square matrix is the transpose of its cofactor matrix.
+     * The adjugate has sometimes been called the "adjoint", but today the "adjoint" of a matrix normally refers
+     *     to its corresponding adjoint operator, which is its conjugate transpose.
      *
-     * Formula from Wolfram Alpha:
-     *   cosh^(-1)z = ln(z + sqrt(z + 1) sqrt(z - 1)).
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse hyperbolic cosine of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function acosh($complex): Complex
+     * @param Matrix|array $matrix The matrix whose adjoint we wish to calculate
+     * @return Matrix
+     * @throws Exception
+     **/
+    public static function adjoint($matrix)
     {
-        $complex = Complex::validateComplexArgument($complex);
+        $matrix = self::validateMatrix($matrix);
 
-        if ($complex->isReal() && ($complex->getReal() > 1)) {
-            return new Complex(\acosh($complex->getReal()));
+        if (!$matrix->isSquare()) {
+            throw new Exception('Adjoint can only be calculated for a square matrix');
         }
 
-        $acosh = self::ln(
-            Operations::add(
-                $complex,
-                Operations::multiply(
-                    self::sqrt(Operations::add($complex, 1)),
-                    self::sqrt(Operations::subtract($complex, 1))
-                )
-            )
+        return self::getAdjoint($matrix);
+    }
+
+    /**
+     * Calculate the cofactors of the matrix
+     *
+     * @param Matrix $matrix The matrix whose cofactors we wish to calculate
+     * @return Matrix
+     *
+     * @throws Exception
+     */
+    private static function getCofactors(Matrix $matrix)
+    {
+        $cofactors = self::getMinors($matrix);
+        $dimensions = $matrix->rows;
+
+        $cof = 1;
+        for ($i = 0; $i < $dimensions; ++$i) {
+            $cofs = $cof;
+            for ($j = 0; $j < $dimensions; ++$j) {
+                $cofactors[$i][$j] *= $cofs;
+                $cofs = -$cofs;
+            }
+            $cof = -$cof;
+        }
+
+        return new Matrix($cofactors);
+    }
+
+    /**
+     * Return the cofactors of this matrix
+     *
+     * @param Matrix|array $matrix The matrix whose cofactors we wish to calculate
+     * @return Matrix
+     *
+     * @throws Exception
+     */
+    public static function cofactors($matrix)
+    {
+        $matrix = self::validateMatrix($matrix);
+
+        if (!$matrix->isSquare()) {
+            throw new Exception('Cofactors can only be calculated for a square matrix');
+        }
+
+        return self::getCofactors($matrix);
+    }
+
+    /**
+     * @param Matrix $matrix
+     * @param int $row
+     * @param int $column
+     * @return float
+     * @throws Exception
+     */
+    private static function getDeterminantSegment(Matrix $matrix, $row, $column)
+    {
+        $tmpMatrix = $matrix->toArray();
+        unset($tmpMatrix[$row]);
+        array_walk(
+            $tmpMatrix,
+            function (&$row) use ($column) {
+                unset($row[$column]);
+            }
         );
 
-        return $acosh;
+        return self::getDeterminant(new Matrix($tmpMatrix));
     }
 
     /**
-     * Returns the inverse cotangent of a complex number.
+     * Calculate the determinant of the matrix
      *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse cotangent of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function acot($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        return self::atan(self::inverse($complex));
-    }
-
-    /**
-     * Returns the inverse hyperbolic cotangent of a complex number.
+     * @param Matrix $matrix The matrix whose determinant we wish to calculate
+     * @return float
      *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse hyperbolic cotangent of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
+     * @throws Exception
      */
-    public static function acoth($complex): Complex
+    private static function getDeterminant(Matrix $matrix)
     {
-        $complex = Complex::validateComplexArgument($complex);
+        $dimensions = $matrix->rows;
+        $determinant = 0;
 
-        return self::atanh(self::inverse($complex));
-    }
-
-    /**
-     * Returns the inverse cosecant of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse cosecant of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function acsc($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
-            return new Complex(INF);
+        switch ($dimensions) {
+            case 1:
+                $determinant = $matrix->getValue(1, 1);
+                break;
+            case 2:
+                $determinant = $matrix->getValue(1, 1) * $matrix->getValue(2, 2) -
+                    $matrix->getValue(1, 2) * $matrix->getValue(2, 1);
+                break;
+            default:
+                for ($i = 1; $i <= $dimensions; ++$i) {
+                    $det = $matrix->getValue(1, $i) * self::getDeterminantSegment($matrix, 0, $i - 1);
+                    if (($i % 2) == 0) {
+                        $determinant -= $det;
+                    } else {
+                        $determinant += $det;
+                    }
+                }
+                break;
         }
 
-        return self::asin(self::inverse($complex));
+        return $determinant;
     }
 
     /**
-     * Returns the inverse hyperbolic cosecant of a complex number.
+     * Return the determinant of this matrix
      *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse hyperbolic cosecant of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function acsch($complex): Complex
+     * @param Matrix|array $matrix The matrix whose determinant we wish to calculate
+     * @return float
+     * @throws Exception
+     **/
+    public static function determinant($matrix)
     {
-        $complex = Complex::validateComplexArgument($complex);
+        $matrix = self::validateMatrix($matrix);
 
-        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
-            return new Complex(INF);
+        if (!$matrix->isSquare()) {
+            throw new Exception('Determinant can only be calculated for a square matrix');
         }
 
-        return self::asinh(self::inverse($complex));
+        return self::getDeterminant($matrix);
     }
 
     /**
-     * Returns the argument of a complex number.
-     * Also known as the theta of the complex number, i.e. the angle in radians
-     *   from the real axis to the representation of the number in polar coordinates.
+     * Return the diagonal of this matrix
      *
-     * This function is a synonym for theta()
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    float            The argument (or theta) value of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     *
-     * @see    theta
-     */
-    public static function argument($complex): float
+     * @param Matrix|array $matrix The matrix whose diagonal we wish to calculate
+     * @return Matrix
+     * @throws Exception
+     **/
+    public static function diagonal($matrix)
     {
-        return self::theta($complex);
-    }
+        $matrix = self::validateMatrix($matrix);
 
-    /**
-     * Returns the inverse secant of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse secant of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function asec($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
-            return new Complex(INF);
+        if (!$matrix->isSquare()) {
+            throw new Exception('Diagonal can only be extracted from a square matrix');
         }
 
-        return self::acos(self::inverse($complex));
-    }
+        $dimensions = $matrix->rows;
+        $grid = Builder::createFilledMatrix(0, $dimensions, $dimensions)
+            ->toArray();
 
-    /**
-     * Returns the inverse hyperbolic secant of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse hyperbolic secant of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function asech($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
-            return new Complex(INF);
+        for ($i = 0; $i < $dimensions; ++$i) {
+            $grid[$i][$i] = $matrix->getValue($i + 1, $i + 1);
         }
 
-        return self::acosh(self::inverse($complex));
+        return new Matrix($grid);
     }
 
     /**
-     * Returns the inverse sine of a complex number.
+     * Return the antidiagonal of this matrix
      *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse sine of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function asin($complex): Complex
+     * @param Matrix|array $matrix The matrix whose antidiagonal we wish to calculate
+     * @return Matrix
+     * @throws Exception
+     **/
+    public static function antidiagonal($matrix)
     {
-        $complex = Complex::validateComplexArgument($complex);
+        $matrix = self::validateMatrix($matrix);
 
-        $invsqrt = self::sqrt(Operations::subtract(1, Operations::multiply($complex, $complex)));
-        $adjust = new Complex(
-            $invsqrt->getReal() - $complex->getImaginary(),
-            $invsqrt->getImaginary() + $complex->getReal()
-        );
-        $log = self::ln($adjust);
-
-        return new Complex(
-            $log->getImaginary(),
-            -1 * $log->getReal()
-        );
-    }
-
-    /**
-     * Returns the inverse hyperbolic sine of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse hyperbolic sine of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function asinh($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->isReal() && ($complex->getReal() > 1)) {
-            return new Complex(\asinh($complex->getReal()));
+        if (!$matrix->isSquare()) {
+            throw new Exception('Anti-Diagonal can only be extracted from a square matrix');
         }
 
-        $asinh = clone $complex;
-        $asinh = $asinh->reverse()
-            ->invertReal();
-        $asinh = self::asin($asinh);
+        $dimensions = $matrix->rows;
+        $grid = Builder::createFilledMatrix(0, $dimensions, $dimensions)
+            ->toArray();
 
-        return $asinh->reverse()
-            ->invertImaginary();
+        for ($i = 0; $i < $dimensions; ++$i) {
+            $grid[$i][$dimensions - $i - 1] = $matrix->getValue($i + 1, $dimensions - $i);
+        }
+
+        return new Matrix($grid);
     }
 
     /**
-     * Returns the inverse tangent of a complex number.
+     * Return the identity matrix
+     * The identity matrix, or sometimes ambiguously called a unit matrix, of size n is the n × n square matrix
+     *   with ones on the main diagonal and zeros elsewhere
      *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse tangent of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function atan($complex): Complex
+     * @param Matrix|array $matrix The matrix whose identity we wish to calculate
+     * @return Matrix
+     * @throws Exception
+     **/
+    public static function identity($matrix)
     {
-        $complex = Complex::validateComplexArgument($complex);
+        $matrix = self::validateMatrix($matrix);
 
-        if ($complex->isReal()) {
-            return new Complex(\atan($complex->getReal()));
+        if (!$matrix->isSquare()) {
+            throw new Exception('Identity can only be created for a square matrix');
         }
 
-        $t1Value = new Complex(-1 * $complex->getImaginary(), $complex->getReal());
-        $uValue = new Complex(1, 0);
+        $dimensions = $matrix->rows;
 
-        $d1Value = clone $uValue;
-        $d1Value = Operations::subtract($d1Value, $t1Value);
-        $d2Value = Operations::add($t1Value, $uValue);
-        $uResult = $d1Value->divideBy($d2Value);
-        $uResult = self::ln($uResult);
-
-        $realMultiplier = -0.5;
-        $imaginaryMultiplier = 0.5;
-
-        if (abs($uResult->getImaginary()) === M_PI) {
-            // If we have an imaginary value at the max or min (PI or -PI), then we need to ensure
-            //    that the primary is assigned for the correct quadrant.
-            $realMultiplier = (
-                ($uResult->getImaginary() === M_PI && $uResult->getReal() > 0.0) ||
-                ($uResult->getImaginary() === -M_PI && $uResult->getReal() < 0.0)
-            ) ? 0.5 : -0.5;
-        }
-
-        return new Complex(
-            $uResult->getImaginary() * $realMultiplier,
-            $uResult->getReal() * $imaginaryMultiplier,
-            $complex->getSuffix()
-        );
+        return Builder::createIdentityMatrix($dimensions);
     }
 
     /**
-     * Returns the inverse hyperbolic tangent of a complex number.
+     * Return the inverse of this matrix
      *
-     * Formula from Wolfram Alpha:
-     *  tanh^(-1)z = 1/2 [ln(1 + z) - ln(1 - z)].
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse hyperbolic tangent of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function atanh($complex): Complex
+     * @param Matrix|array $matrix The matrix whose inverse we wish to calculate
+     * @return Matrix
+     * @throws Exception
+     **/
+    public static function inverse($matrix, string $type = 'inverse')
     {
-        $complex = Complex::validateComplexArgument($complex);
+        $matrix = self::validateMatrix($matrix);
 
-        if ($complex->isReal()) {
-            $real = $complex->getReal();
-            if ($real >= -1.0 && $real <= 1.0) {
-                return new Complex(\atanh($real));
-            } else {
-                return new Complex(\atanh(1 / $real), (($real < 0.0) ? M_PI_2 : -1 * M_PI_2));
+        if (!$matrix->isSquare()) {
+            throw new Exception(ucfirst($type) . ' can only be calculated for a square matrix');
+        }
+
+        $determinant = self::getDeterminant($matrix);
+        if ($determinant == 0.0) {
+            throw new Div0Exception(ucfirst($type) . ' can only be calculated for a matrix with a non-zero determinant');
+        }
+
+        if ($matrix->rows == 1) {
+            return new Matrix([[1 / $matrix->getValue(1, 1)]]);
+        }
+
+        return self::getAdjoint($matrix)
+            ->multiply(1 / $determinant);
+    }
+
+    /**
+     * Calculate the minors of the matrix
+     *
+     * @param Matrix $matrix The matrix whose minors we wish to calculate
+     * @return array[]
+     *
+     * @throws Exception
+     */
+    protected static function getMinors(Matrix $matrix)
+    {
+        $minors = $matrix->toArray();
+        $dimensions = $matrix->rows;
+        if ($dimensions == 1) {
+            return $minors;
+        }
+
+        for ($i = 0; $i < $dimensions; ++$i) {
+            for ($j = 0; $j < $dimensions; ++$j) {
+                $minors[$i][$j] = self::getDeterminantSegment($matrix, $i, $j);
             }
         }
 
-        $atanh = Operations::multiply(
-            Operations::subtract(
-                self::ln(Operations::add(1.0, $complex)),
-                self::ln(Operations::subtract(1.0, $complex))
-            ),
-            0.5
+        return $minors;
+    }
+
+    /**
+     * Return the minors of the matrix
+     * The minor of a matrix A is the determinant of some smaller square matrix, cut down from A by removing one or
+     *     more of its rows or columns.
+     * Minors obtained by removing just one row and one column from square matrices (first minors) are required for
+     *     calculating matrix cofactors, which in turn are useful for computing both the determinant and inverse of
+     *     square matrices.
+     *
+     * @param Matrix|array $matrix The matrix whose minors we wish to calculate
+     * @return Matrix
+     * @throws Exception
+     **/
+    public static function minors($matrix)
+    {
+        $matrix = self::validateMatrix($matrix);
+
+        if (!$matrix->isSquare()) {
+            throw new Exception('Minors can only be calculated for a square matrix');
+        }
+
+        return new Matrix(self::getMinors($matrix));
+    }
+
+    /**
+     * Return the trace of this matrix
+     * The trace is defined as the sum of the elements on the main diagonal (the diagonal from the upper left to the lower right)
+     *     of the matrix
+     *
+     * @param Matrix|array $matrix The matrix whose trace we wish to calculate
+     * @return float
+     * @throws Exception
+     **/
+    public static function trace($matrix)
+    {
+        $matrix = self::validateMatrix($matrix);
+
+        if (!$matrix->isSquare()) {
+            throw new Exception('Trace can only be extracted from a square matrix');
+        }
+
+        $dimensions = $matrix->rows;
+        $result = 0;
+        for ($i = 1; $i <= $dimensions; ++$i) {
+            $result += $matrix->getValue($i, $i);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Return the transpose of this matrix
+     *
+     * @param Matrix|\a $matrix The matrix whose transpose we wish to calculate
+     * @return Matrix
+     **/
+    public static function transpose($matrix)
+    {
+        $matrix = self::validateMatrix($matrix);
+
+        $array = array_values(array_merge([null], $matrix->toArray()));
+        $grid = call_user_func_array(
+            'array_map',
+            $array
         );
 
-        return $atanh;
-    }
-
-    /**
-     * Returns the complex conjugate of a complex number
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The conjugate of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function conjugate($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        return new Complex(
-            $complex->getReal(),
-            -1 * $complex->getImaginary(),
-            $complex->getSuffix()
-        );
-    }
-
-    /**
-     * Returns the cosine of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The cosine of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function cos($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->isReal()) {
-            return new Complex(\cos($complex->getReal()));
-        }
-
-        return self::conjugate(
-            new Complex(
-                \cos($complex->getReal()) * \cosh($complex->getImaginary()),
-                \sin($complex->getReal()) * \sinh($complex->getImaginary()),
-                $complex->getSuffix()
-            )
-        );
-    }
-
-    /**
-     * Returns the hyperbolic cosine of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The hyperbolic cosine of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function cosh($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->isReal()) {
-            return new Complex(\cosh($complex->getReal()));
-        }
-
-        return new Complex(
-            \cosh($complex->getReal()) * \cos($complex->getImaginary()),
-            \sinh($complex->getReal()) * \sin($complex->getImaginary()),
-            $complex->getSuffix()
-        );
-    }
-
-    /**
-     * Returns the cotangent of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The cotangent of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function cot($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
-            return new Complex(INF);
-        }
-
-        return self::inverse(self::tan($complex));
-    }
-
-    /**
-     * Returns the hyperbolic cotangent of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The hyperbolic cotangent of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function coth($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        return self::inverse(self::tanh($complex));
-    }
-
-    /**
-     * Returns the cosecant of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The cosecant of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function csc($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
-            return new Complex(INF);
-        }
-
-        return self::inverse(self::sin($complex));
-    }
-
-    /**
-     * Returns the hyperbolic cosecant of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The hyperbolic cosecant of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function csch($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
-            return new Complex(INF);
-        }
-
-        return self::inverse(self::sinh($complex));
-    }
-
-    /**
-     * Returns the exponential of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The exponential of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function exp($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if (($complex->getReal() == 0.0) && (\abs($complex->getImaginary()) == M_PI)) {
-            return new Complex(-1.0, 0.0);
-        }
-
-        $rho = \exp($complex->getReal());
-
-        return new Complex(
-            $rho * \cos($complex->getImaginary()),
-            $rho * \sin($complex->getImaginary()),
-            $complex->getSuffix()
-        );
-    }
-
-    /**
-     * Returns the inverse of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The inverse of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function inverse($complex): Complex
-    {
-        $complex = clone Complex::validateComplexArgument($complex);
-
-        if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
-            throw new InvalidArgumentException('Division by zero');
-        }
-
-        return $complex->divideInto(1.0);
-    }
-
-    /**
-     * Returns the natural logarithm of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The natural logarithm of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    InvalidArgumentException  If the real and the imaginary parts are both zero
-     */
-    public static function ln($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if (($complex->getReal() == 0.0) && ($complex->getImaginary() == 0.0)) {
-            throw new InvalidArgumentException();
-        }
-
-        return new Complex(
-            \log(self::rho($complex)),
-            self::theta($complex),
-            $complex->getSuffix()
-        );
-    }
-
-    /**
-     * Returns the base-2 logarithm of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The base-2 logarithm of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    InvalidArgumentException  If the real and the imaginary parts are both zero
-     */
-    public static function log2($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if (($complex->getReal() == 0.0) && ($complex->getImaginary() == 0.0)) {
-            throw new InvalidArgumentException();
-        } elseif (($complex->getReal() > 0.0) && ($complex->getImaginary() == 0.0)) {
-            return new Complex(\log($complex->getReal(), 2), 0.0, $complex->getSuffix());
-        }
-
-        return self::ln($complex)
-            ->multiply(\log(Complex::EULER, 2));
-    }
-
-    /**
-     * Returns the common logarithm (base 10) of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The common logarithm (base 10) of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    InvalidArgumentException  If the real and the imaginary parts are both zero
-     */
-    public static function log10($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if (($complex->getReal() == 0.0) && ($complex->getImaginary() == 0.0)) {
-            throw new InvalidArgumentException();
-        } elseif (($complex->getReal() > 0.0) && ($complex->getImaginary() == 0.0)) {
-            return new Complex(\log10($complex->getReal()), 0.0, $complex->getSuffix());
-        }
-
-        return self::ln($complex)
-            ->multiply(\log10(Complex::EULER));
-    }
-
-    /**
-     * Returns the negative of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The negative value of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     *
-     * @see    rho
-     *
-     */
-    public static function negative($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        return new Complex(
-            -1 * $complex->getReal(),
-            -1 * $complex->getImaginary(),
-            $complex->getSuffix()
-        );
-    }
-
-    /**
-     * Returns a complex number raised to a power.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @param     float|integer    $power      The power to raise this value to
-     * @return    Complex          The complex argument raised to the real power.
-     * @throws    Exception        If the power argument isn't a valid real
-     */
-    public static function pow($complex, $power): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if (!is_numeric($power)) {
-            throw new Exception('Power argument must be a real number');
-        }
-
-        if ($complex->getImaginary() == 0.0 && $complex->getReal() >= 0.0) {
-            return new Complex(\pow($complex->getReal(), $power));
-        }
-
-        $rValue = \sqrt(($complex->getReal() * $complex->getReal()) + ($complex->getImaginary() * $complex->getImaginary()));
-        $rPower = \pow($rValue, $power);
-        $theta = $complex->argument() * $power;
-        if ($theta == 0) {
-            return new Complex(1);
-        }
-
-        return new Complex($rPower * \cos($theta), $rPower * \sin($theta), $complex->getSuffix());
-    }
-
-    /**
-     * Returns the rho of a complex number.
-     * This is the distance/radius from the centrepoint to the representation of the number in polar coordinates.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    float            The rho value of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function rho($complex): float
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        return \sqrt(
-            ($complex->getReal() * $complex->getReal()) +
-            ($complex->getImaginary() * $complex->getImaginary())
-        );
-    }
-
-    /**
-     * Returns the secant of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The secant of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function sec($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        return self::inverse(self::cos($complex));
-    }
-
-    /**
-     * Returns the hyperbolic secant of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The hyperbolic secant of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function sech($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        return self::inverse(self::cosh($complex));
-    }
-
-    /**
-     * Returns the sine of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The sine of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function sin($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->isReal()) {
-            return new Complex(\sin($complex->getReal()));
-        }
-
-        return new Complex(
-            \sin($complex->getReal()) * \cosh($complex->getImaginary()),
-            \cos($complex->getReal()) * \sinh($complex->getImaginary()),
-            $complex->getSuffix()
-        );
-    }
-
-    /**
-     * Returns the hyperbolic sine of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The hyperbolic sine of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function sinh($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->isReal()) {
-            return new Complex(\sinh($complex->getReal()));
-        }
-
-        return new Complex(
-            \sinh($complex->getReal()) * \cos($complex->getImaginary()),
-            \cosh($complex->getReal()) * \sin($complex->getImaginary()),
-            $complex->getSuffix()
-        );
-    }
-
-    /**
-     * Returns the square root of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The Square root of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function sqrt($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        $theta = self::theta($complex);
-        $delta1 = \cos($theta / 2);
-        $delta2 = \sin($theta / 2);
-        $rho = \sqrt(self::rho($complex));
-
-        return new Complex($delta1 * $rho, $delta2 * $rho, $complex->getSuffix());
-    }
-
-    /**
-     * Returns the tangent of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The tangent of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function tan($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->isReal()) {
-            return new Complex(\tan($complex->getReal()));
-        }
-
-        $real = $complex->getReal();
-        $imaginary = $complex->getImaginary();
-        $divisor = 1 + \pow(\tan($real), 2) * \pow(\tanh($imaginary), 2);
-        if ($divisor == 0.0) {
-            throw new InvalidArgumentException('Division by zero');
-        }
-
-        return new Complex(
-            \pow(self::sech($imaginary)->getReal(), 2) * \tan($real) / $divisor,
-            \pow(self::sec($real)->getReal(), 2) * \tanh($imaginary) / $divisor,
-            $complex->getSuffix()
-        );
-    }
-
-    /**
-     * Returns the hyperbolic tangent of a complex number.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    Complex          The hyperbolic tangent of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     * @throws    \InvalidArgumentException    If function would result in a division by zero
-     */
-    public static function tanh($complex): Complex
-    {
-        $complex = Complex::validateComplexArgument($complex);
-        $real = $complex->getReal();
-        $imaginary = $complex->getImaginary();
-        $divisor = \cos($imaginary) * \cos($imaginary) + \sinh($real) * \sinh($real);
-        if ($divisor == 0.0) {
-            throw new InvalidArgumentException('Division by zero');
-        }
-
-        return new Complex(
-            \sinh($real) * \cosh($real) / $divisor,
-            0.5 * \sin(2 * $imaginary) / $divisor,
-            $complex->getSuffix()
-        );
-    }
-
-    /**
-     * Returns the theta of a complex number.
-     *   This is the angle in radians from the real axis to the representation of the number in polar coordinates.
-     *
-     * @param     Complex|mixed    $complex    Complex number or a numeric value.
-     * @return    float            The theta value of the complex argument.
-     * @throws    Exception        If argument isn't a valid real or complex number.
-     */
-    public static function theta($complex): float
-    {
-        $complex = Complex::validateComplexArgument($complex);
-
-        if ($complex->getReal() == 0.0) {
-            if ($complex->isReal()) {
-                return 0.0;
-            } elseif ($complex->getImaginary() < 0.0) {
-                return M_PI / -2;
-            }
-            return M_PI / 2;
-        } elseif ($complex->getReal() > 0.0) {
-            return \atan($complex->getImaginary() / $complex->getReal());
-        } elseif ($complex->getImaginary() < 0.0) {
-            return -(M_PI - \atan(\abs($complex->getImaginary()) / \abs($complex->getReal())));
-        }
-
-        return M_PI - \atan($complex->getImaginary() / \abs($complex->getReal()));
+        return new Matrix($grid);
     }
 }

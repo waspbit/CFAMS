@@ -1,210 +1,157 @@
 <?php
 
-namespace Complex;
+namespace Matrix;
 
-use InvalidArgumentException;
+use Matrix\Operators\Addition;
+use Matrix\Operators\DirectSum;
+use Matrix\Operators\Division;
+use Matrix\Operators\Multiplication;
+use Matrix\Operators\Subtraction;
 
 class Operations
 {
-    /**
-     * Adds two or more complex numbers
-     *
-     * @param     array of string|integer|float|Complex    $complexValues   The numbers to add
-     * @return    Complex
-     */
-    public static function add(...$complexValues): Complex
+    public static function add(...$matrixValues): Matrix
     {
-        if (count($complexValues) < 2) {
-            throw new \Exception('This function requires at least 2 arguments');
+        if (count($matrixValues) < 2) {
+            throw new Exception('Addition operation requires at least 2 arguments');
         }
 
-        $base = array_shift($complexValues);
-        $result = clone Complex::validateComplexArgument($base);
+        $matrix = array_shift($matrixValues);
 
-        foreach ($complexValues as $complex) {
-            $complex = Complex::validateComplexArgument($complex);
-
-            if ($result->isComplex() && $complex->isComplex() &&
-                $result->getSuffix() !== $complex->getSuffix()) {
-                throw new Exception('Suffix Mismatch');
-            }
-
-            $real = $result->getReal() + $complex->getReal();
-            $imaginary = $result->getImaginary() + $complex->getImaginary();
-
-            $result = new Complex(
-                $real,
-                $imaginary,
-                ($imaginary == 0.0) ? null : max($result->getSuffix(), $complex->getSuffix())
-            );
+        if (is_array($matrix)) {
+            $matrix = new Matrix($matrix);
+        }
+        if (!$matrix instanceof Matrix) {
+            throw new Exception('Addition arguments must be Matrix or array');
         }
 
-        return $result;
+        $result = new Addition($matrix);
+
+        foreach ($matrixValues as $matrix) {
+            $result->execute($matrix);
+        }
+
+        return $result->result();
     }
 
-    /**
-     * Divides two or more complex numbers
-     *
-     * @param     array of string|integer|float|Complex    $complexValues   The numbers to divide
-     * @return    Complex
-     */
-    public static function divideby(...$complexValues): Complex
+    public static function directsum(...$matrixValues): Matrix
     {
-        if (count($complexValues) < 2) {
-            throw new \Exception('This function requires at least 2 arguments');
+        if (count($matrixValues) < 2) {
+            throw new Exception('DirectSum operation requires at least 2 arguments');
         }
 
-        $base = array_shift($complexValues);
-        $result = clone Complex::validateComplexArgument($base);
+        $matrix = array_shift($matrixValues);
 
-        foreach ($complexValues as $complex) {
-            $complex = Complex::validateComplexArgument($complex);
-
-            if ($result->isComplex() && $complex->isComplex() &&
-                $result->getSuffix() !== $complex->getSuffix()) {
-                throw new Exception('Suffix Mismatch');
-            }
-            if ($complex->getReal() == 0.0 && $complex->getImaginary() == 0.0) {
-                throw new InvalidArgumentException('Division by zero');
-            }
-
-            $delta1 = ($result->getReal() * $complex->getReal()) +
-                ($result->getImaginary() * $complex->getImaginary());
-            $delta2 = ($result->getImaginary() * $complex->getReal()) -
-                ($result->getReal() * $complex->getImaginary());
-            $delta3 = ($complex->getReal() * $complex->getReal()) +
-                ($complex->getImaginary() * $complex->getImaginary());
-
-            $real = $delta1 / $delta3;
-            $imaginary = $delta2 / $delta3;
-
-            $result = new Complex(
-                $real,
-                $imaginary,
-                ($imaginary == 0.0) ? null : max($result->getSuffix(), $complex->getSuffix())
-            );
+        if (is_array($matrix)) {
+            $matrix = new Matrix($matrix);
+        }
+        if (!$matrix instanceof Matrix) {
+            throw new Exception('DirectSum arguments must be Matrix or array');
         }
 
-        return $result;
+        $result = new DirectSum($matrix);
+
+        foreach ($matrixValues as $matrix) {
+            $result->execute($matrix);
+        }
+
+        return $result->result();
     }
 
-    /**
-     * Divides two or more complex numbers
-     *
-     * @param     array of string|integer|float|Complex    $complexValues   The numbers to divide
-     * @return    Complex
-     */
-    public static function divideinto(...$complexValues): Complex
+    public static function divideby(...$matrixValues): Matrix
     {
-        if (count($complexValues) < 2) {
-            throw new \Exception('This function requires at least 2 arguments');
+        if (count($matrixValues) < 2) {
+            throw new Exception('Division operation requires at least 2 arguments');
         }
 
-        $base = array_shift($complexValues);
-        $result = clone Complex::validateComplexArgument($base);
+        $matrix = array_shift($matrixValues);
 
-        foreach ($complexValues as $complex) {
-            $complex = Complex::validateComplexArgument($complex);
-
-            if ($result->isComplex() && $complex->isComplex() &&
-                $result->getSuffix() !== $complex->getSuffix()) {
-                throw new Exception('Suffix Mismatch');
-            }
-            if ($result->getReal() == 0.0 && $result->getImaginary() == 0.0) {
-                throw new InvalidArgumentException('Division by zero');
-            }
-
-            $delta1 = ($complex->getReal() * $result->getReal()) +
-                ($complex->getImaginary() * $result->getImaginary());
-            $delta2 = ($complex->getImaginary() * $result->getReal()) -
-                ($complex->getReal() * $result->getImaginary());
-            $delta3 = ($result->getReal() * $result->getReal()) +
-                ($result->getImaginary() * $result->getImaginary());
-
-            $real = $delta1 / $delta3;
-            $imaginary = $delta2 / $delta3;
-
-            $result = new Complex(
-                $real,
-                $imaginary,
-                ($imaginary == 0.0) ? null : max($result->getSuffix(), $complex->getSuffix())
-            );
+        if (is_array($matrix)) {
+            $matrix = new Matrix($matrix);
+        }
+        if (!$matrix instanceof Matrix) {
+            throw new Exception('Division arguments must be Matrix or array');
         }
 
-        return $result;
+        $result = new Division($matrix);
+
+        foreach ($matrixValues as $matrix) {
+            $result->execute($matrix);
+        }
+
+        return $result->result();
     }
 
-    /**
-     * Multiplies two or more complex numbers
-     *
-     * @param     array of string|integer|float|Complex    $complexValues   The numbers to multiply
-     * @return    Complex
-     */
-    public static function multiply(...$complexValues): Complex
+    public static function divideinto(...$matrixValues): Matrix
     {
-        if (count($complexValues) < 2) {
-            throw new \Exception('This function requires at least 2 arguments');
+        if (count($matrixValues) < 2) {
+            throw new Exception('Division operation requires at least 2 arguments');
         }
 
-        $base = array_shift($complexValues);
-        $result = clone Complex::validateComplexArgument($base);
+        $matrix = array_pop($matrixValues);
+        $matrixValues = array_reverse($matrixValues);
 
-        foreach ($complexValues as $complex) {
-            $complex = Complex::validateComplexArgument($complex);
-
-            if ($result->isComplex() && $complex->isComplex() &&
-                $result->getSuffix() !== $complex->getSuffix()) {
-                throw new Exception('Suffix Mismatch');
-            }
-
-            $real = ($result->getReal() * $complex->getReal()) -
-                ($result->getImaginary() * $complex->getImaginary());
-            $imaginary = ($result->getReal() * $complex->getImaginary()) +
-                ($result->getImaginary() * $complex->getReal());
-
-            $result = new Complex(
-                $real,
-                $imaginary,
-                ($imaginary == 0.0) ? null : max($result->getSuffix(), $complex->getSuffix())
-            );
+        if (is_array($matrix)) {
+            $matrix = new Matrix($matrix);
+        }
+        if (!$matrix instanceof Matrix) {
+            throw new Exception('Division arguments must be Matrix or array');
         }
 
-        return $result;
+        $result = new Division($matrix);
+
+        foreach ($matrixValues as $matrix) {
+            $result->execute($matrix);
+        }
+
+        return $result->result();
     }
 
-    /**
-     * Subtracts two or more complex numbers
-     *
-     * @param     array of string|integer|float|Complex    $complexValues   The numbers to subtract
-     * @return    Complex
-     */
-    public static function subtract(...$complexValues): Complex
+    public static function multiply(...$matrixValues): Matrix
     {
-        if (count($complexValues) < 2) {
-            throw new \Exception('This function requires at least 2 arguments');
+        if (count($matrixValues) < 2) {
+            throw new Exception('Multiplication operation requires at least 2 arguments');
         }
 
-        $base = array_shift($complexValues);
-        $result = clone Complex::validateComplexArgument($base);
+        $matrix = array_shift($matrixValues);
 
-        foreach ($complexValues as $complex) {
-            $complex = Complex::validateComplexArgument($complex);
-
-            if ($result->isComplex() && $complex->isComplex() &&
-                $result->getSuffix() !== $complex->getSuffix()) {
-                throw new Exception('Suffix Mismatch');
-            }
-
-            $real = $result->getReal() - $complex->getReal();
-            $imaginary = $result->getImaginary() - $complex->getImaginary();
-
-            $result = new Complex(
-                $real,
-                $imaginary,
-                ($imaginary == 0.0) ? null : max($result->getSuffix(), $complex->getSuffix())
-            );
+        if (is_array($matrix)) {
+            $matrix = new Matrix($matrix);
+        }
+        if (!$matrix instanceof Matrix) {
+            throw new Exception('Multiplication arguments must be Matrix or array');
         }
 
-        return $result;
+        $result = new Multiplication($matrix);
+
+        foreach ($matrixValues as $matrix) {
+            $result->execute($matrix);
+        }
+
+        return $result->result();
+    }
+
+    public static function subtract(...$matrixValues): Matrix
+    {
+        if (count($matrixValues) < 2) {
+            throw new Exception('Subtraction operation requires at least 2 arguments');
+        }
+
+        $matrix = array_shift($matrixValues);
+
+        if (is_array($matrix)) {
+            $matrix = new Matrix($matrix);
+        }
+        if (!$matrix instanceof Matrix) {
+            throw new Exception('Subtraction arguments must be Matrix or array');
+        }
+
+        $result = new Subtraction($matrix);
+
+        foreach ($matrixValues as $matrix) {
+            $result->execute($matrix);
+        }
+
+        return $result->result();
     }
 }

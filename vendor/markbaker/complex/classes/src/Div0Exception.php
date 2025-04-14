@@ -8,6 +8,6 @@
  */
 namespace Matrix;
 
-class Exception extends \Exception
+class Div0Exception extends Exception
 {
 }
